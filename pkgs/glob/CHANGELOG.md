@@ -1,3 +1,9 @@
+## 2.2.1-wip
+
+- Fix `list()` and `listSync()` returning nothing for globs that contain a
+  literal `.` or `..` path component (such as `./*` or `../*`) when the glob is
+  case-insensitive, which is the default on Windows.
+
 ## 2.2.0
 
 - Limit option expansion during glob listing (`list()` and `listSync()`) to a

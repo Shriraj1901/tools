@@ -355,12 +355,23 @@ class _ListTreeNode {
 
         children!.forEach((sequence, child) {
           if (entity is! Directory) return;
+          if (_isDotSegment(sequence)) return;
           if (!sequence.matches(basename)) return;
           var stream = child.list(p.join(dir, basename), fileSystem,
               followLinks: followLinks);
           resultGroup.add(stream);
         });
       }
+
+      // Directory listings never contain `.` or `..`, so children for those
+      // are traversed directly instead of being matched against [entities].
+      children!.forEach((sequence, child) {
+        if (!_isDotSegment(sequence)) return;
+        resultGroup.add(child.list(
+            p.join(dir, (sequence.nodes.single as LiteralNode).text),
+            fileSystem,
+            followLinks: followLinks));
+      });
       unawaited(resultController.close());
       unawaited(resultGroup.close());
       return resultGroup.stream;
@@ -381,6 +392,7 @@ class _ListTreeNode {
       var child = entry.value;
       var sequence = entry.key;
       if (!child._isIntermediate) continue;
+      if (_isDotSegment(sequence)) continue;
       if (entities.any(
           (entity) => sequence.matches(p.relative(entity.path, from: dir)))) {
         continue;
@@ -443,7 +455,8 @@ class _ListTreeNode {
       if (entity is! Directory) return entities;
 
       entities.addAll(children!.keys
-          .where((sequence) => sequence.matches(basename))
+          .where((sequence) =>
+              !_isDotSegment(sequence) && sequence.matches(basename))
           .expand((sequence) {
         return children![sequence]!
             .listSync(p.join(dir, basename), fileSystem,
@@ -452,7 +465,14 @@ class _ListTreeNode {
       }));
 
       return entities;
-    });
+    }).followedBy(
+        // Directory listings never contain `.` or `..`, so children for those
+        // are traversed directly instead of being matched against [entities].
+        children!.entries.where((entry) => _isDotSegment(entry.key)).expand(
+            (entry) => entry.value.listSync(
+                p.join(dir, (entry.key.nodes.single as LiteralNode).text),
+                fileSystem,
+                followLinks: followLinks)));
   }
 
   /// If this is a case-insensitive list, validates that all intermediate
@@ -467,6 +487,7 @@ class _ListTreeNode {
 
     children!.forEach((sequence, child) {
       if (!child._isIntermediate) return;
+      if (_isDotSegment(sequence)) return;
       if (entities.any(
           (entity) => sequence.matches(p.relative(entity.path, from: dir)))) {
         return;
@@ -487,6 +508,13 @@ class _ListTreeNode {
 
   @override
   String toString() => '($_validator) $children';
+}
+
+/// Returns whether [sequence] is the literal `.` or `..` path component.
+bool _isDotSegment(SequenceNode sequence) {
+  if (sequence.nodes.length != 1) return false;
+  var node = sequence.nodes.single;
+  return node is LiteralNode && (node.text == '.' || node.text == '..');
 }
 
 /// Joins each [components] into a new glob where each component is separated by

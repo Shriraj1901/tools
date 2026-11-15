@@ -293,6 +293,53 @@ void main() {
           equals([p.join('top', 'dir1', 'subdir', 'file')]));
     });
 
+    group('with "." and ".." components', () {
+      for (var caseSensitive in [true, false]) {
+        group('when caseSensitive is $caseSensitive', () {
+          test('lists a leading "."', () async {
+            expect(await list('./foo/*', caseSensitive: caseSensitive),
+                unorderedEquals([p.join('foo', 'bar'), p.join('foo', 'baz')]));
+          });
+
+          test('lists a "." in the middle of a glob', () async {
+            expect(
+                await list('foo/./baz/*', caseSensitive: caseSensitive),
+                unorderedEquals([
+                  p.join('foo', 'baz', 'bang'),
+                  p.join('foo', 'baz', 'qux')
+                ]));
+          });
+
+          test('lists a ".." in the middle of a glob', () async {
+            expect(await list('foo/baz/../*', caseSensitive: caseSensitive),
+                unorderedEquals([p.join('foo', 'bar'), p.join('foo', 'baz')]));
+          });
+
+          test('lists a "." as the last directory of a glob', () async {
+            expect(
+                await list('foo/baz/./**', caseSensitive: caseSensitive),
+                unorderedEquals([
+                  p.join('foo', 'baz', 'bang'),
+                  p.join('foo', 'baz', 'qux')
+                ]));
+          });
+
+          test('lists "." alongside other options', () async {
+            expect(
+                await list('foo/{./bar,baz/qux}', caseSensitive: caseSensitive),
+                unorderedEquals(
+                    [p.join('foo', 'bar'), p.join('foo', 'baz', 'qux')]));
+          });
+
+          test('lists nothing when a directory beyond ".." is missing',
+              () async {
+            expect(await list('foo/../nope/*', caseSensitive: caseSensitive),
+                isEmpty);
+          });
+        });
+      }
+    });
+
     group('when case-insensitive', () {
       test('lists literals case-insensitively', () async {
         expect(await list('foo/baz/qux', caseSensitive: false),
